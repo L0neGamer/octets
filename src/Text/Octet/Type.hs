@@ -102,15 +102,19 @@ class OctetLike o where
   debugShow :: o enc -> String
 
 instance OctetLike Octet where
+  {-# INLINE coerceOctet #-}
   coerceOctet = MkOctet . unOctet
 
+  {-# INLINE fromByteArray #-}
   fromByteArray = coerce
 
   {-# NOINLINE empty #-}
   empty = mempty
 
+  {-# INLINE deconstruct #-}
   deconstruct (MkOctet ba) = (ba, 0, sizeofByteArray ba)
 
+  {-# INLINE splitAt #-}
   splitAt takeSize o@(MkOctet ba)
     | takeSize <= 0 = (empty, o)
     | takeSize > sizeO = (o, empty)
@@ -127,15 +131,19 @@ instance OctetLike Octet where
   debugShow (MkOctet o) = "Octet " <> show o
 
 instance OctetLike OctetSlice where
+  {-# INLINE coerceOctet #-}
   coerceOctet MkOctetSlice {..} = MkOctetSlice {octet = coerceOctet octet,..}
 
+  {-# INLINE fromByteArray #-}
   fromByteArray ba = MkOctetSlice (MkOctet ba) 0 (sizeofByteArray ba)
 
   {-# NOINLINE empty #-}
   empty = MkOctetSlice empty 0 0
 
+  {-# INLINE deconstruct #-}
   deconstruct (MkOctetSlice {..}) = (unOctet octet, offset, size)
 
+  {-# INLINE splitAt #-}
   splitAt takeSize o@(MkOctetSlice {..})
     | takeSize <= 0 = (empty, o)
     | takeSize >= sizeO = (o, empty)
@@ -146,7 +154,7 @@ instance OctetLike OctetSlice where
 
   debugShow (MkOctetSlice {..}) = "OctetSlice (" <> debugShow octet <> ") " <> show offset <> " " <> show size
 
--- | If the given octet is empty, we return the unpinneed empty value, since
+-- | If the given octet is empty, we return the unpinned empty value, since
 -- there's no point in actually pinning that.
 toPinned :: OctetLike o => o enc -> o enc
 toPinned o = runST $ do
