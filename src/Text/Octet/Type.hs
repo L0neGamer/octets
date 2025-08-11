@@ -2,6 +2,7 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RequiredTypeArguments #-}
+{-# LANGUAGE UnboxedTuples #-}
 
 module Text.Octet.Type where
 
@@ -21,7 +22,7 @@ import Data.Bifunctor
 
 type role Octet nominal
 newtype Octet encoding = MkOctet { unOctet :: ByteArray }
-  deriving newtype (Semigroup, Monoid, Eq, NFData)
+  deriving newtype (Semigroup, Eq, NFData)
 
 instance Ord (Octet encoding) where
   compare (MkOctet ba1) (MkOctet ba2)
@@ -32,6 +33,13 @@ instance Ord (Octet encoding) where
     len2 = sizeofByteArray ba2
     minSize = min len1 len2
 
+instance Monoid (Octet encoding) where
+  mempty = emptyOctet
+
+{-# NOINLINE emptyOctet #-}
+emptyOctet :: Octet encoding
+emptyOctet = MkOctet $ runST (newByteArray 0 >>= unsafeFreezeByteArray)
+
 type role OctetSlice nominal
 data OctetSlice encoding = MkOctetSlice
   { octet :: {-# UNPACK #-} !(Octet encoding)
@@ -40,19 +48,25 @@ data OctetSlice encoding = MkOctetSlice
   }
 
 instance Eq (OctetSlice encoding) where
-  (==) os1 os2 = size os1 == size os2 && EQ ==
-    compareByteArraysFrom
-      (unOctet (octet os1)) (offset os1)
-      (unOctet (octet os2)) (offset os2)
-      (size os1)
+  (==) os1 os2 = sameSlice os1 os2 || diffBAs
+    where
+    ba1 = unOctet (octet os1)
+    ba2 = unOctet (octet os2)
+    diffBAs = size os1 == size os2 && EQ ==
+      compareByteArraysFrom
+        ba1 (offset os1)
+        ba2 (offset os2)
+        (size os1)
 
 instance Ord (OctetSlice encoding) where
-  compare os1 os2 =
-    compareByteArraysFrom
-      (unOctet (octet os1)) (offset os1)
-      (unOctet (octet os2)) (offset os2)
-      minSize
-    <> compare len1 len2
+  compare os1 os2
+    | sameSlice os1 os2 = EQ
+    | otherwise =
+        compareByteArraysFrom
+          (unOctet (octet os1)) (offset os1)
+          (unOctet (octet os2)) (offset os2)
+          minSize
+        <> compare len1 len2
     where
     len1 = size os1
     len2 = size os2
@@ -67,12 +81,24 @@ instance Semigroup (OctetSlice encoding) where
     | size os2 == 0 = os1
     | otherwise = fromByteArray $ runST $ do
       mba <- newByteArray (size1 + size2)
-      copyByteArray mba 0 (unOctet (octet os1)) (offset os1) size1
-      copyByteArray mba size1 (unOctet (octet os2)) (offset os2) size2
+      unsafeCopyByteArray mba 0 (unOctet (octet os1)) (offset os1) size1
+      unsafeCopyByteArray mba size1 (unOctet (octet os2)) (offset os2) size2
       unsafeFreezeByteArray mba
     where
     size1 = size os1
     size2 = size os2
+
+instance Monoid (OctetSlice encoding) where
+  mempty = emptySlice
+
+{-# NOINLINE emptySlice #-}
+emptySlice :: OctetSlice encoding
+emptySlice = MkOctetSlice emptyOctet 0 0
+
+sameSlice :: OctetSlice encoding -> OctetSlice encoding -> Bool
+sameSlice os1 os2 = sameByteArray (unOctet (octet os1)) (unOctet (octet os2)) &&
+  size os1 == size os2 &&
+  offset os1 == offset os2
 
 -- | Invariant: 0 <= startindex <= startindex + length for both bytearrays.
 compareByteArraysFrom :: ByteArray -> Int -> ByteArray -> Int -> Int -> Ordering
@@ -150,8 +176,8 @@ instance OctetLike OctetSlice where
   {-# INLINE fromByteArray #-}
   fromByteArray ba = MkOctetSlice (MkOctet ba) 0 (sizeofByteArray ba)
 
-  {-# NOINLINE empty #-}
-  empty = MkOctetSlice empty 0 0
+  {-# INLINE empty #-}
+  empty = emptySlice
 
   {-# INLINE deconstruct #-}
   deconstruct (MkOctetSlice {..}) = (unOctet octet, offset, size)
