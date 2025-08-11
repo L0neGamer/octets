@@ -11,7 +11,7 @@ import GHC.Exts
 import Control.DeepSeq
 import Control.Monad.ST
 -- import Data.Primitive
--- import Control.Monad.Primitive
+import Control.Monad.Primitive
 import Data.List.NonEmpty qualified as NE
 import Data.Word
 -- import Control.Monad
