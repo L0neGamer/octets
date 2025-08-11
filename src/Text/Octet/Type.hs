@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RequiredTypeArguments #-}
@@ -22,6 +23,10 @@ import Data.Bifunctor
 import GHC.Word
 import Data.Functor
 import Control.Monad
+import GHC.TypeNats as Nat
+import GHC.TypeLits as Lit
+import Data.Type.Equality
+import Data.Functor
 
 type role Octet nominal
 newtype Octet encoding = MkOctet { unOctet :: ByteArray }
@@ -280,18 +285,37 @@ toOctet o
 -- - A zero `b` value
 -- - The octet
 {-# INLINE foldrWith #-}
-foldrWith :: forall o enc a b. OctetLike o => Int -> (NE.NonEmpty Word8 -> (a , Int)) -> (a -> b -> b) -> b -> o enc -> b
-foldrWith peek getNextOffset f z o = doFold offset
+foldrWith :: forall o enc n a b. (OctetLike o, KnownNat n, 1 <= n) => (FoldVec n Word8 -> (a , Int)) -> (a -> b -> b) -> b -> o enc -> b
+foldrWith getAndNextOffset f z o = doFold offset
   where
   (ba, offset, size) = deconstruct o
   maxOffset = offset + size
 
-  getNext :: Int -> Maybe (Int, a)
-  getNext currentOffset = guard (currentOffset < maxOffset) $> (currentOffset + used, nextValue)
+  getNext :: Int -> Maybe (a, Int)
+  getNext currentOffset = getAndNextOffset <$> peeksFor (natSing @0) (natSing @n)
     where
-    (nextValue, used) = getNextOffset bytes
-    bytes = Text.Octet.Type.indexByteArray ba <$> currentOffset NE.:| [currentOffset + 1 .. min (currentOffset + peek) maxOffset]
+    peeksFor :: forall up down. (KnownNat up, KnownNat down) => SNat up -> SNat down -> Maybe (FoldVec down Word8)
+    peeksFor peekIndex countDown = do
+      let peekIndexNat = Nat.natVal peekIndex
+          currentPeek = currentOffset + fromIntegral peekIndexNat
+      guard (currentPeek < maxOffset)
+      let byte = Text.Octet.Type.indexByteArray ba currentPeek
+      Lit.withSomeSNat (Lit.natVal countDown - 1) $ fmap $ \countDown'@(SNat @down') ->
+        Nat.withSomeSNat (peekIndexNat + 1) $ \peekIndex'@SNat ->
+          let consed :: FoldVec (down' + 1) Word8
+              consed = ConsVec byte $ maybe NilVec id $ peeksFor peekIndex' countDown'
+          in case natSing @(down' + 1) of
+            SNat -> case sameNat (getSize consed) countDown of
+              Just Refl -> consed
+              Nothing -> NilVec
 
   doFold currentOffset = case getNext currentOffset of
     Nothing -> z
-    Just (nextOffset, a) -> f a (doFold nextOffset)
+    Just (a, nextOffset) -> f a (doFold nextOffset)
+
+data FoldVec (n :: Nat) a where
+  NilVec :: FoldVec n a
+  ConsVec :: a -> FoldVec n a -> FoldVec (n + 1) a
+
+getSize :: forall n a. KnownNat n => FoldVec n a -> SNat n
+getSize _ = natSing @n
