@@ -23,4 +23,4 @@ fromList :: OctetLike o => [Word8] -> o EncBytes
 fromList = Text.Octet.Type.fromListWith (Just . pure)
 
 foldrBytes :: OctetLike o => (Word8 -> b -> b) -> b -> o EncBytes -> b
-foldrBytes = foldrWith (const 1) NE.head
+foldrBytes = foldrWith 1 $ \ne -> (NE.head ne, 1)

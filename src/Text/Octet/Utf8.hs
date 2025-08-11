@@ -122,7 +122,10 @@ fromStringDrop = Text.Octet.Type.fromListWith (\c -> guard (isSafe c) $> toUtf8B
 -- applying a right fold.
 {-# INLINE foldrUtf8 #-}
 foldrUtf8 :: OctetLike o => (Char -> b -> b) -> b -> o EncUtf8 -> b
-foldrUtf8 = foldrWith utf8LengthByLeader fromUtf8Bytes
+foldrUtf8 = foldrWith 4 $ \case
+  (w1 NE.:| ws) ->
+    let toTake = utf8LengthByLeader w1
+    in (fromUtf8Bytes (w1 NE.:| take (toTake - 1) ws), toTake)
 
 instance Show Utf8 where
   showsPrec i = showsPrec i . foldrUtf8 (:) []

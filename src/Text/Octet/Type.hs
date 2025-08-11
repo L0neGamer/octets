@@ -271,28 +271,26 @@ toOctet o
 
 -- | Fold over an octet when given:
 --
--- - A function which gives the next value's offset from the current offset based
---    on the current byte
--- - A function which, when given all the bytes up to the next offset, always
---    returns an `a` value. This will likely be a partial function, or claim
---    to drop values when you know it shouldn't.
+-- - An amount of bytes to peek - if there is not enough bytes left, then all
+--    the bytes that can be gotten are given
+-- - A function which, when given all the peeked bytes, always
+--    returns an `a` value and how many were used (which must be >= 1).
 -- - A folding function which takes the previous `a` value and a `b` value to
 --    return another `b` value
 -- - A zero `b` value
 -- - The octet
 {-# INLINE foldrWith #-}
-foldrWith :: forall o enc a b. OctetLike o => (Word8 -> Int) -> (NE.NonEmpty Word8 -> a) -> (a -> b -> b) -> b -> o enc -> b
-foldrWith getNextOffset fromWords f z o = doFold offset
+foldrWith :: forall o enc a b. OctetLike o => Int -> (NE.NonEmpty Word8 -> (a , Int)) -> (a -> b -> b) -> b -> o enc -> b
+foldrWith peek getNextOffset f z o = doFold offset
   where
   (ba, offset, size) = deconstruct o
+  maxOffset = offset + size
 
   getNext :: Int -> Maybe (Int, a)
-  getNext currentOffset = guard (nextOffset - 1 < offset + size) $> (nextOffset, fromWords bytes)
+  getNext currentOffset = guard (currentOffset < maxOffset) $> (currentOffset + used, nextValue)
     where
-    nextOffset = getNextOffset firstWord + currentOffset
-    -- note that we map over a list, but use the first element to determine how
-    -- long the list is. the magic of laziness!
-    bytes@(firstWord NE.:| _) = Text.Octet.Type.indexByteArray ba <$> currentOffset NE.:| [currentOffset + 1 .. nextOffset - 1]
+    (nextValue, used) = getNextOffset bytes
+    bytes = Text.Octet.Type.indexByteArray ba <$> currentOffset NE.:| [currentOffset + 1 .. min (currentOffset + peek) maxOffset]
 
   doFold currentOffset = case getNext currentOffset of
     Nothing -> z
