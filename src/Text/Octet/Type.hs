@@ -82,6 +82,19 @@ compareByteArraysFrom (ByteArray ba1#) (I# ind1#) (ByteArray ba2#) (I# ind2#) (I
 sameByteArray :: ByteArray -> ByteArray -> Bool
 sameByteArray (ByteArray ba1#) (ByteArray ba2#) = isTrue# (sameByteArray# ba1# ba2#)
 
+-- doesn't do bounds or overlap checking
+unsafeCopyByteArray
+  :: PrimMonad m =>
+     MutableByteArray (PrimState m) -- ^ destination array
+  -> Int                -- ^ offset into destination array
+  -> ByteArray          -- ^ source array
+  -> Int                -- ^ offset into source array
+  -> Int                -- ^ number of bytes to copy
+  -> m ()
+{-# INLINE unsafeCopyByteArray #-}
+unsafeCopyByteArray (MutableByteArray dst) (I# doff) (ByteArray src) (I# soff) (I# sz) =
+  primitive $ \s -> (# copyByteArray# src soff dst doff sz s, () #)
+
 class OctetLike o where
   -- | Unsafe coercion
   coerceOctet :: o enc1 -> o enc2
@@ -121,8 +134,8 @@ instance OctetLike Octet where
     | otherwise = bimap fromByteArray fromByteArray $ runST $ do
         mba1 <- newByteArray takeSize
         mba2 <- newByteArray restSize
-        copyByteArray mba1 0 ba 0 takeSize
-        copyByteArray mba2 0 ba takeSize restSize
+        unsafeCopyByteArray mba1 0 ba 0 takeSize
+        unsafeCopyByteArray mba2 0 ba takeSize restSize
         liftA2 (,) (unsafeFreezeByteArray mba1) (unsafeFreezeByteArray mba2)
     where
     sizeO = sizeofByteArray ba
@@ -162,7 +175,7 @@ toPinned o = runST $ do
     then pure empty
     else do
       mba <- newPinnedByteArray size
-      copyByteArray mba 0 ba offset size
+      unsafeCopyByteArray mba 0 ba offset size
       fromByteArray <$> unsafeFreezeByteArray mba
   where
   (ba, offset, size) = deconstruct o
@@ -174,7 +187,7 @@ toUnpinned o = runST $ do
     then pure empty
     else do
       mba <- newByteArray size
-      copyByteArray mba 0 ba offset size
+      unsafeCopyByteArray mba 0 ba offset size
       fromByteArray <$> unsafeFreezeByteArray mba
   where
   (ba, offset, size) = deconstruct o
@@ -219,7 +232,7 @@ toOctet o
     | offset == 0 && size == sizeofByteArray ba = MkOctet ba
     | otherwise = MkOctet $ runST $ do
       mba <- newByteArray size
-      copyByteArray mba 0 ba offset size
+      unsafeCopyByteArray mba 0 ba offset size
       unsafeFreezeByteArray mba
   where
   (ba, offset, size) = deconstruct o
