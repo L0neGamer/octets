@@ -19,6 +19,9 @@ import Data.Word
 -- import Data.Traversable
 import Data.Foldable
 import Data.Bifunctor
+import GHC.Word
+import Data.Functor
+import Control.Monad
 
 type role Octet nominal
 newtype Octet encoding = MkOctet { unOctet :: ByteArray }
@@ -107,6 +110,9 @@ compareByteArraysFrom (ByteArray ba1#) (I# ind1#) (ByteArray ba2#) (I# ind2#) (I
 
 sameByteArray :: ByteArray -> ByteArray -> Bool
 sameByteArray (ByteArray ba1#) (ByteArray ba2#) = isTrue# (sameByteArray# ba1# ba2#)
+
+indexByteArray :: ByteArray -> Int -> Word8
+indexByteArray (ByteArray ba#) (I# i#) = W8# $ indexWord8Array# ba# i#
 
 -- doesn't do bounds or overlap checking
 unsafeCopyByteArray
@@ -263,3 +269,31 @@ toOctet o
   where
   (ba, offset, size) = deconstruct o
 
+-- | Fold over an octet when given:
+--
+-- - A function which gives the next value's offset from the current offset based
+--    on the current byte
+-- - A function which, when given all the bytes up to the next offset, always
+--    returns an `a` value. This will likely be a partial function, or claim
+--    to drop values when you know it shouldn't.
+-- - A folding function which takes the previous `a` value and a `b` value to
+--    return another `b` value
+-- - A zero `b` value
+-- - The octet
+{-# INLINE foldrWith #-}
+foldrWith :: forall o enc a b. OctetLike o => (Word8 -> Int) -> (NE.NonEmpty Word8 -> a) -> (a -> b -> b) -> b -> o enc -> b
+foldrWith getNextOffset fromWords f z o = doFold offset
+  where
+  (ba, offset, size) = deconstruct o
+
+  getNext :: Int -> Maybe (Int, a)
+  getNext currentOffset = guard (nextOffset - 1 < offset + size) $> (nextOffset, fromWords bytes)
+    where
+    nextOffset = getNextOffset firstWord + currentOffset
+    -- note that we map over a list, but use the first element to determine how
+    -- long the list is. the magic of laziness!
+    bytes@(firstWord NE.:| _) = Text.Octet.Type.indexByteArray ba <$> currentOffset NE.:| [currentOffset + 1 .. nextOffset - 1]
+
+  doFold currentOffset = case getNext currentOffset of
+    Nothing -> z
+    Just (nextOffset, a) -> f a (doFold nextOffset)

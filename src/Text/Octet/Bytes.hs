@@ -3,6 +3,7 @@ module Text.Octet.Bytes where
 
 import Text.Octet.Type
 import Data.Word
+import Data.List.NonEmpty qualified as NE
 
 data EncBytes
 
@@ -20,3 +21,6 @@ unsafeFromBytes = coerceOctet
 
 fromList :: OctetLike o => [Word8] -> o EncBytes
 fromList = Text.Octet.Type.fromListWith (Just . pure)
+
+foldrBytes :: OctetLike o => (Word8 -> b -> b) -> b -> o EncBytes -> b
+foldrBytes = foldrWith (const 1) NE.head
