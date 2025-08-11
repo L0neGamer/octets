@@ -49,6 +49,8 @@ intToWord8 = fromIntegral
 ord :: Char -> Int
 ord (C# c#) = I# (ord# c#)
 
+-- | Produces up to 4 words. Does not check or verify that the Char is valid
+-- utf8.
 {-# INLINE toUtf8Bytes #-}
 toUtf8Bytes :: Char -> NE.NonEmpty Word8
 toUtf8Bytes = \c ->
@@ -71,22 +73,10 @@ toUtf8Bytes = \c ->
         w3 = intToWord8 $ ((o `shiftR` 6) .&. 0x3F) + 0x80
         w4 = intToWord8 $ (o .&. 0x3F) + 0x80
 
--- | Turn a string into auUtf8 encoded string, converting invalid scalar `Char`s
--- into the replacement character '\xfffd'.
-{-# INLINE fromStringReplace #-}
-fromStringReplace :: OctetLike o => String -> o EncUtf8
-fromStringReplace = Text.Octet.Type.fromListWith (Just . toUtf8Bytes . safe)
-
--- | Turn a string into a utf8 encoded string, dropping invalid scalar `Char`s.
-{-# INLINE fromStringDrop #-}
-fromStringDrop :: OctetLike o => String -> o EncUtf8
-fromStringDrop = Text.Octet.Type.fromListWith (\c -> guard (isSafe c) $> toUtf8Bytes c)
-
--- | Fold over a utf8 encoded string, turning each character into a `Char` and
--- applying a right fold.
-{-# INLINE foldrUtf8 #-}
-foldrUtf8 :: OctetLike o => (Char -> b -> b) -> b -> o EncUtf8 -> b
-foldrUtf8 = foldrWith utf8LengthByLeader $ \case
+-- | If the list is more than 4 bytes, we ignore the rest of them.
+{-# INLINE fromUtf8Bytes #-}
+fromUtf8Bytes :: NE.NonEmpty Word8 -> Char
+fromUtf8Bytes = \case
   w1 NE.:| [] -> C# (chr# i1)
     where
     i1 = word8ToInt w1
@@ -116,6 +106,23 @@ foldrUtf8 = foldrWith utf8LengthByLeader $ \case
     c4 = i4 -# 0x80#
   where
   word8ToInt (W8# w8#) = word2Int# (word8ToWord# w8#)
+
+-- | Turn a string into auUtf8 encoded string, converting invalid scalar `Char`s
+-- into the replacement character '\xfffd'.
+{-# INLINE fromStringReplace #-}
+fromStringReplace :: OctetLike o => String -> o EncUtf8
+fromStringReplace = Text.Octet.Type.fromListWith (Just . toUtf8Bytes . safe)
+
+-- | Turn a string into a utf8 encoded string, dropping invalid scalar `Char`s.
+{-# INLINE fromStringDrop #-}
+fromStringDrop :: OctetLike o => String -> o EncUtf8
+fromStringDrop = Text.Octet.Type.fromListWith (\c -> guard (isSafe c) $> toUtf8Bytes c)
+
+-- | Fold over a utf8 encoded string, turning each character into a `Char` and
+-- applying a right fold.
+{-# INLINE foldrUtf8 #-}
+foldrUtf8 :: OctetLike o => (Char -> b -> b) -> b -> o EncUtf8 -> b
+foldrUtf8 = foldrWith utf8LengthByLeader fromUtf8Bytes
 
 instance Show Utf8 where
   showsPrec i = showsPrec i . foldrUtf8 (:) []
