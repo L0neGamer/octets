@@ -96,7 +96,7 @@ class OctetLike o where
   deconstruct :: o enc -> (ByteArray, Int, Int)
 
   -- | Split an octet. A slice will slice, otherwise this is probably a copy.
-  -- Splits after 
+  -- Splits before the index given; so `splitAt 0` gives (empty, octet).
   splitAt :: Int -> o enc -> (o enc, o enc)
 
   debugShow :: o enc -> String
@@ -197,3 +197,22 @@ fromListWith f as = fromByteArray $ runST $ do
             writeByteArray mba' (ind + offset) word
           go mba' destlen' newLen xs
       | otherwise -> go mba destlen offset xs
+
+-- | Zero cost conversion to a slice.
+toOctetSlice :: OctetLike o => o enc -> OctetSlice enc
+toOctetSlice o = MkOctetSlice {octet = MkOctet ba,..}
+  where
+  (ba, offset, size) = deconstruct o
+
+-- | Likely copy a bytearray into the octet. Won't copy if the offset is 0 and
+-- the size matches the bytearray's size.
+toOctet :: OctetLike o => o enc -> Octet enc
+toOctet o
+    | offset == 0 && size == sizeofByteArray ba = MkOctet ba
+    | otherwise = MkOctet $ runST $ do
+      mba <- newByteArray size
+      copyByteArray mba 0 ba offset size
+      unsafeFreezeByteArray mba
+  where
+  (ba, offset, size) = deconstruct o
+
