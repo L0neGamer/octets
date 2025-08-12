@@ -71,7 +71,6 @@ library
   -- Modules exported by the library.
   -- cabal-fmt: expand src -Text.Octet.Utils
   exposed-modules:
-    MyLib
     Text.Octet
     Text.Octet.Bytes
     Text.Octet.Class
@@ -106,8 +105,11 @@ test-suite octets-test
   -- Base language which the package is written in.
   default-language: GHC2024
 
-  -- Modules included in this executable, other than Main.
-  -- other-modules:
+  -- Modules included in this executable
+  -- cabal-fmt: expand test -Spec
+  other-modules:
+    Text.Octet.BytesSpec
+    Text.Octet.Utf8Spec
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
@@ -119,9 +121,21 @@ test-suite octets-test
   hs-source-dirs:   test
 
   -- The entrypoint to the test suite.
-  main-is:          Main.hs
+  main-is:          Spec.hs
+  
+  build-tool-depends:
+    tasty-discover:tasty-discover
+
+  ghc-options: -Wno-x-octets-internal
 
   -- Test dependencies.
   build-depends:
     , base    ^>=4.21.0.0
     , octets
+    , tasty
+    , tasty-discover
+    , tasty-hspec
+    , tasty-hedgehog
+    , hspec
+    , hedgehog
+    , hspec-hedgehog
