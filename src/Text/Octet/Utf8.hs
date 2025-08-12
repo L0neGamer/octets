@@ -8,6 +8,7 @@ module Text.Octet.Utf8
   , fromStringDrop
   , foldrUtf8
   , foldlUtf8
+  , toString
 
   -- * Internals exported for testing
   , safe
@@ -157,8 +158,11 @@ instance IsString Utf8 where
 instance IsString Utf8Slice where
   fromString = fromStringReplace
 
+toString :: OctetLike o => o EncUtf8 -> String
+toString = foldrUtf8 (:) []
+
 showsPrecUtf8 :: OctetLike o => Int -> o EncUtf8 -> ShowS
-showsPrecUtf8 i = showsPrec i . foldrUtf8 (:) []
+showsPrecUtf8 i = showsPrec i . toString
 
 instance Show Utf8 where
   showsPrec = showsPrecUtf8
