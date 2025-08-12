@@ -1,8 +1,3 @@
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE RequiredTypeArguments #-}
-{-# LANGUAGE UnboxedTuples #-}
 
 module Text.Octet.Utils
   ( Text.Octet.Utils.indexByteArray
