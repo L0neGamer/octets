@@ -2,8 +2,6 @@
 
 module Text.Octet.Utf8 where
 
-import Text.Octet.Type
--- import Text.Octet.Bytes
 import Data.Bits
 import Data.List.NonEmpty qualified as NE
 import GHC.Exts
@@ -12,6 +10,8 @@ import GHC.Word
 import Data.Functor
 import Control.Monad
 import Data.Bifunctor
+import Text.Octet.OctetSlice
+import Text.Octet.Octet
 
 data EncUtf8
 
@@ -19,21 +19,17 @@ type Utf8 = Octet EncUtf8
 
 type Utf8Slice = OctetSlice EncUtf8
 
-{-# INLINE safe #-}
 safe :: Char -> Char
 safe c
     | isSafe c = c
     | otherwise = '\xfffd'
 
-{-# INLINE isSafe #-}
 isSafe :: Char -> Bool
 isSafe c = ord c .&. 0x1ff800 /= 0xd800
 
-{-# INLINE utf8Length #-}
 utf8Length :: Char -> Int
 utf8Length (C# c) = I# ((1# +# geChar# c (chr# 0x80#)) +# (geChar# c (chr# 0x800#) +# geChar# c (chr# 0x10000#)))
 
-{-# INLINE utf8LengthByLeader #-}
 utf8LengthByLeader :: Word8 -> Int
 utf8LengthByLeader w
   | w < 0x80  = 1
@@ -43,7 +39,6 @@ utf8LengthByLeader w
 
 -- | Given a nonempty list of bytes in reverse order of what the utf8 bytes should
 -- be, determine how many of those bytes to keep.
-{-# INLINE utf8LengthByReverseBytes #-}
 utf8LengthByReverseBytes :: NE.NonEmpty Word8 -> Int
 utf8LengthByReverseBytes = \case
   (w0 NE.:| _)
@@ -54,17 +49,14 @@ utf8LengthByReverseBytes = \case
     | w2 >= 0xC0 -> 3
   _ -> 4
 
-{-# INLINE intToWord8 #-}
 intToWord8 :: Int -> Word8
 intToWord8 = fromIntegral
 
-{-# INLINE ord #-}
 ord :: Char -> Int
 ord (C# c#) = I# (ord# c#)
 
 -- | Produces up to 4 words. Does not check or verify that the Char is valid
 -- utf8.
-{-# INLINE toUtf8Bytes #-}
 toUtf8Bytes :: Char -> NE.NonEmpty Word8
 toUtf8Bytes = \c ->
   let o = ord c
@@ -87,7 +79,6 @@ toUtf8Bytes = \c ->
         w4 = intToWord8 $ (o .&. 0x3F) + 0x80
 
 -- | If the list is more than 4 bytes, we ignore the rest of them.
-{-# INLINE fromUtf8Bytes #-}
 fromUtf8Bytes :: NE.NonEmpty Word8 -> Char
 fromUtf8Bytes = \case
   w1 NE.:| [] -> C# (chr# i1)
@@ -122,25 +113,21 @@ fromUtf8Bytes = \case
 
 -- | Turn a string into auUtf8 encoded string, converting invalid scalar `Char`s
 -- into the replacement character '\xfffd'.
-{-# INLINE fromStringReplace #-}
 fromStringReplace :: OctetLike o => String -> o EncUtf8
-fromStringReplace = Text.Octet.Type.fromListWith (Just . toUtf8Bytes . safe)
+fromStringReplace = fromListWith (Just . toUtf8Bytes . safe)
 
 -- | Turn a string into a utf8 encoded string, dropping invalid scalar `Char`s.
-{-# INLINE fromStringDrop #-}
 fromStringDrop :: OctetLike o => String -> o EncUtf8
-fromStringDrop = Text.Octet.Type.fromListWith (\c -> guard (isSafe c) $> toUtf8Bytes c)
+fromStringDrop = fromListWith (\c -> guard (isSafe c) $> toUtf8Bytes c)
 
 -- | Fold over a utf8 encoded string, turning each character into a `Char` and
 -- applying a right fold.
-{-# INLINE foldrUtf8 #-}
 foldrUtf8 :: OctetLike o => (Char -> b -> b) -> b -> o EncUtf8 -> b
 foldrUtf8 = foldrWith 4 $ \case
   (w1 NE.:| ws) ->
     let toTake = utf8LengthByLeader w1
     in (fromUtf8Bytes (w1 NE.:| take (toTake - 1) ws), toTake)
 
-{-# INLINE foldlUtf8 #-}
 foldlUtf8 :: OctetLike o => (b -> Char -> b) -> b -> o EncUtf8 -> b
 foldlUtf8 = foldlWith 4 $ \case
   neWs@(w1 NE.:| ws) ->

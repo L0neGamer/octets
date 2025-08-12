@@ -55,21 +55,32 @@ extra-doc-files: CHANGELOG.md
 common warnings
   ghc-options: -Wall
 
+common extentions
+  default-extensions:
+    MagicHash
+    RecordWildCards
+    RequiredTypeArguments
+    TypeFamilies
+    UnboxedTuples
+
 library
   -- Import common warning flags.
   import:           warnings
+  import:           extentions
 
   -- Modules exported by the library.
-  -- cabal-fmt: expand src
+  -- cabal-fmt: expand src -Text.Octet.Utils
   exposed-modules:
     MyLib
     Text.Octet
     Text.Octet.Bytes
-    Text.Octet.Type
+    Text.Octet.Class
+    Text.Octet.Octet
+    Text.Octet.OctetSlice
     Text.Octet.Utf8
 
   -- Modules included in this library but not exported.
-  -- other-modules:
+  other-modules:    Text.Octet.Utils
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
@@ -83,6 +94,7 @@ library
 
   -- Directories containing source files.
   hs-source-dirs:   src
+  ghc-options:      -fexpose-all-unfoldings -fspecialise-aggressively
 
   -- Base language which the package is written in.
   default-language: GHC2024

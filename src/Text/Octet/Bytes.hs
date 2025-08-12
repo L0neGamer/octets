@@ -1,9 +1,23 @@
 
-module Text.Octet.Bytes where
+module Text.Octet.Bytes
+  ( Bytes
+  , BytesSlice
+  , EncBytes
 
-import Text.Octet.Type
+  , fromList
+  , toBytes
+  , unsafeFromBytes
+  , foldrBytes
+  , foldlBytes
+
+  , module Text.Octet.Class
+  ) where
+
 import Data.Word
 import Data.List.NonEmpty qualified as NE
+import Text.Octet.Class
+import Text.Octet.OctetSlice
+import Text.Octet.Octet
 
 data EncBytes
 
@@ -20,7 +34,7 @@ unsafeFromBytes :: OctetLike o => o EncBytes -> o enc
 unsafeFromBytes = coerceOctet
 
 fromList :: OctetLike o => [Word8] -> o EncBytes
-fromList = Text.Octet.Type.fromListWith (Just . pure)
+fromList = fromListWith (Just . pure)
 
 foldrBytes :: OctetLike o => (Word8 -> b -> b) -> b -> o EncBytes -> b
 foldrBytes = foldrWith 1 $ \ne -> (NE.head ne, 1)
