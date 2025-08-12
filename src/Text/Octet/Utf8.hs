@@ -1,6 +1,19 @@
-{-# LANGUAGE MagicHash #-}
 
-module Text.Octet.Utf8 where
+module Text.Octet.Utf8
+  ( Utf8
+  , Utf8Slice
+  , EncUtf8
+
+  , fromStringReplace
+  , fromStringDrop
+  , foldrUtf8
+  , foldlUtf8
+
+  -- * Internals exported for testing
+  , safe
+  , isSafe
+
+  ) where
 
 import Data.Bits
 import Data.List.NonEmpty qualified as NE
@@ -19,11 +32,13 @@ type Utf8 = Octet EncUtf8
 
 type Utf8Slice = OctetSlice EncUtf8
 
+{-# WARNING in "x-octets-internal" safe "octets internal function" #-}
 safe :: Char -> Char
 safe c
     | isSafe c = c
     | otherwise = '\xfffd'
 
+{-# WARNING in "x-octets-internal" isSafe "octets internal function" #-}
 isSafe :: Char -> Bool
 isSafe c = ord c .&. 0x1ff800 /= 0xd800
 
