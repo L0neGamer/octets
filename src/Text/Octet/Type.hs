@@ -271,8 +271,8 @@ toOctet o
 
 -- | Fold over an octet when given:
 --
--- - An amount of bytes to peek - if there is not enough bytes left, then all
---    the bytes that can be gotten are given
+-- - An amount of bytes to peek from the left - if there is not enough bytes
+--    left, then all the bytes that can be gotten are given
 -- - A function which, when given all the peeked bytes, always
 --    returns an `a` value and how many were used (which must be >= 1).
 -- - A folding function which takes the previous `a` value and a `b` value to
@@ -292,6 +292,37 @@ foldrWith peek getNextOffset f z o = doFold offset
     (nextValue, used) = getNextOffset bytes
     bytes = Text.Octet.Type.indexByteArray ba <$> currentOffset NE.:| [currentOffset + 1 .. min (currentOffset + peek) maxOffset]
 
+  doFold :: Int -> b
   doFold currentOffset = case getNext currentOffset of
     Nothing -> z
     Just (nextOffset, a) -> f a (doFold nextOffset)
+
+-- | Fold over an octet when given:
+--
+-- - An amount of bytes to peek from the right - if there is not enough bytes
+--    left, then all the bytes that can be gotten are given
+-- - A function which, when given all the peeked bytes, always
+--    returns an `a` value and how many were used (which must be >= 1). The bytes
+--    are given right to left
+-- - A folding function which takes the previous `a` value and a `b` value to
+--    return another `b` value
+-- - A zero `b` value
+-- - The octet
+{-# INLINE foldlWith #-}
+foldlWith :: forall o enc a b. OctetLike o => Int -> (NE.NonEmpty Word8 -> (a , Int)) -> (b -> a -> b) -> b -> o enc -> b
+foldlWith peek getNextOffset f z o = doFold startOffset
+  where
+  (ba, offset, size) = deconstruct o
+  maxOffset = offset + size
+  startOffset = maxOffset - 1
+
+  getNext :: Int -> Maybe (Int, a)
+  getNext currentOffset = guard (currentOffset >= offset) $> (currentOffset - used, nextValue)
+    where
+    (nextValue, used) = getNextOffset bytes
+    bytes = Text.Octet.Type.indexByteArray ba <$> currentOffset NE.:| [currentOffset - 1, currentOffset - 2 .. max (currentOffset - peek) offset]
+
+  doFold :: Int -> b
+  doFold currentOffset = case getNext currentOffset of
+    Nothing -> z
+    Just (nextOffset, a) -> f (doFold nextOffset) a

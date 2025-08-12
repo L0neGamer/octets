@@ -41,6 +41,19 @@ utf8LengthByLeader w
   | w < 0xF0  = 3
   | otherwise = 4
 
+-- | Given a nonempty list of bytes in reverse order of what the utf8 bytes should
+-- be, determine how many of those bytes to keep.
+{-# INLINE utf8LengthByReverseBytes #-}
+utf8LengthByReverseBytes :: NE.NonEmpty Word8 -> Int
+utf8LengthByReverseBytes = \case
+  (w0 NE.:| _)
+    | w0 < 0x80 -> 1
+  (_ NE.:| (w1 : _))
+    | w1 >= 0xC0 -> 2
+  (_ NE.:| (_ : w2 : _))
+    | w2 >= 0xC0 -> 3
+  _ -> 4
+
 {-# INLINE intToWord8 #-}
 intToWord8 :: Int -> Word8
 intToWord8 = fromIntegral
@@ -125,6 +138,13 @@ foldrUtf8 :: OctetLike o => (Char -> b -> b) -> b -> o EncUtf8 -> b
 foldrUtf8 = foldrWith 4 $ \case
   (w1 NE.:| ws) ->
     let toTake = utf8LengthByLeader w1
+    in (fromUtf8Bytes (w1 NE.:| take (toTake - 1) ws), toTake)
+
+{-# INLINE foldlUtf8 #-}
+foldlUtf8 :: OctetLike o => (b -> Char -> b) -> b -> o EncUtf8 -> b
+foldlUtf8 = foldlWith 4 $ \case
+  neWs@(w1 NE.:| ws) ->
+    let toTake = utf8LengthByReverseBytes neWs
     in (fromUtf8Bytes (w1 NE.:| take (toTake - 1) ws), toTake)
 
 instance Show Utf8 where
