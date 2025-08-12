@@ -1,0 +1,6 @@
+:l src/Text/Octet/Utils.hs src/Text/Octet/Class.hs src/Text/Octet/OctetSlice.hs src/Text/Octet/Octet.hs src/Text/Octet/Utf8.hs src/Text/Octet/Bytes.hs
+import Text.Octet.Class as Class
+import Text.Octet.Octet as Octet
+import Text.Octet.OctetSlice as OctetSlice
+import Text.Octet.Utf8 as Utf8
+import Text.Octet.Bytes as Bytes
