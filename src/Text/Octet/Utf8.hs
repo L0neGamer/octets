@@ -147,14 +147,28 @@ foldlUtf8 = foldlWith 4 $ \case
     let toTake = utf8LengthByReverseBytes neWs
     in (fromUtf8Bytes (w1 NE.:| take (toTake - 1) ws), toTake)
 
+-- | Uses `fromStringReplace`
+instance IsString Utf8 where
+  fromString = fromStringReplace
+
+-- | Uses `fromStringReplace`
+instance IsString Utf8Slice where
+  fromString = fromStringReplace
+
+showsPrecUtf8 :: OctetLike o => Int -> o EncUtf8 -> ShowS
+showsPrecUtf8 i = showsPrec i . foldrUtf8 (:) []
+
 instance Show Utf8 where
-  showsPrec i = showsPrec i . foldrUtf8 (:) []
+  showsPrec = showsPrecUtf8
 
 instance Show Utf8Slice where
-  showsPrec i = showsPrec i . foldrUtf8 (:) []
+  showsPrec = showsPrecUtf8
+
+readsPrecUtf8 :: OctetLike o => Int -> ReadS (o EncUtf8)
+readsPrecUtf8 i s = first fromStringReplace <$> readsPrec i s
 
 instance Read Utf8 where
-  readsPrec i s = first fromStringReplace <$> readsPrec i s
+  readsPrec = readsPrecUtf8
 
 instance Read Utf8Slice where
-  readsPrec i s = first fromStringReplace <$> readsPrec i s
+  readsPrec = readsPrecUtf8
